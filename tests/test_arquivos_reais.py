@@ -52,3 +52,20 @@ def test_arquivos_reais_nao_tem_divergencia():
     divs = conferir(r, b, p, mes_inicio="2026-01", mes_fim="2026-07", saldo_final_anterior={})
     assert divs == []
     assert len(saldos_por_mes(r, b, mes_inicio="2026-01", mes_fim="2026-07")) == 378 * 7
+
+
+def test_importacao_real_em_sqlite():
+    from sqlalchemy import func, select
+
+    from conta_tools_contabil import db
+    from conta_tools_contabil.importacao.gravar import importar
+
+    db.set_database_url("sqlite:///:memory:")
+    e = db.get_engine()
+    db.criar_schema(e)
+    r = importar(e, razao=RAZAO.read_bytes(), balancete=BALANCETE.read_bytes(), plano=PLANO.read_bytes(),
+                 mes_inicio="2026-01", mes_fim="2026-07", quem="teste")
+    assert r.aceita, r.divergencias[:5]
+    with e.connect() as c:
+        assert c.execute(select(func.count()).select_from(db.lancamento)).scalar() == 15289
+        assert c.execute(select(func.count()).select_from(db.conta_mes)).scalar() == 378 * 7
