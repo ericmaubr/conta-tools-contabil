@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conciliação · AJ</title>
+<link rel="stylesheet" href="comum.css?v=15">
+<style>
+  .app { display: flex; height: calc(100vh - 128px); }
+  .lateral { width: 320px; flex: none; background: #fff; border-right: 1px solid #e2e5eb; display: flex; flex-direction: column; }
+  .lateral .filtros { padding: 10px; border-bottom: 1px solid #e2e5eb; display: flex; flex-direction: column; gap: 6px; }
+  .lateral .lista { overflow-y: auto; flex: 1; }
+  .item { padding: 7px 10px; border-bottom: 1px solid #f0f2f5; cursor: pointer; border-left: 3px solid transparent; }
+  .item:hover { background: #f7f9fb; }
+  .item.atual { background: #eef3f8; border-left-color: #1a3c5e; }
+  .item .nome { font-weight: 600; font-size: 12px; }
+  .item .sub { font-size: 11px; color: #888; display: flex; justify-content: space-between; gap: 6px; margin-top: 2px; }
+  .principal { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+  .principal .conteudo { padding: 14px 20px; flex: 1; }
+  tr.grp td { background: #f5f8fb; font-weight: 600; color: #1a3c5e; cursor: pointer; }
+  tr.grp:hover td { background: #eaf0f7; }
+  tr.secao td { background: #fff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #1a3c5e; padding-top: 14px; border-bottom: 2px solid #1a3c5e; }
+  .seta { display: inline-block; width: 14px; transition: transform .15s; }
+  .seta.aberta { transform: rotate(90deg); }
+  .contagem { font-size: 11px; color: #888; padding: 4px 10px; }
+  tr.secao td.tot { color: #1a3c5e; font-size: 12px; text-transform: none; letter-spacing: 0; }
+  tr.grp td.tot { font-weight: 600; }
+  tr.sub td { background: #fafbfc; font-size: 12px; cursor: pointer; color: #1f2430; }
+  tr.sub:hover td { background: #eef3f8; }
+  tr.sub td.tot { font-weight: 600; color: #1a3c5e; }
+  td.dif { border-left: 1px solid #e2e5eb; font-weight: 600; }
+  tr.total td { background: #1a3c5e; color: #fff; font-weight: 700; padding: 7px 8px; }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <label>Período <select><option>01/2026 a 07/2026</option></select></label>
+  <span class="muted" style="font-size:12px">Razão e balancete importados em 08/10/2026 · plano de contas de 08/10/2026</span>
+  <button class="secundario" style="margin-left:auto" onclick="alerta('No sistema real: envia um razão novo do IGC; o que já foi conciliado é mantido.','info')">⬆ Importar razão</button>
+  <button class="secundario" onclick="exportarExcel()">⬇ Excel</button>
+</div>
+<div class="app">
+  <div class="lateral">
+    <div class="filtros">
+      <select id="f-grupo"></select>
+      <input type="text" id="f-busca" placeholder="🔍 buscar conta (nome ou código)">
+      <label style="font-size:12px"><input type="checkbox" id="f-pend" checked> só contas com pendência</label>
+    </div>
+    <div class="contagem" id="contagem"></div>
+    <div class="lista" id="lista"></div>
+  </div>
+  <div class="principal">
+    <div class="conteudo">
+      <div class="cartao" id="cab"></div>
+      <div style="display:flex;gap:8px;margin:12px 0 6px">
+        <button class="secundario" id="abrir-todos">▾ Expandir conciliados</button>
+        <button class="secundario" id="fechar-todos">▸ Recolher</button>
+      </div>
+      <table id="tab"></table>
+    </div>
+    <div class="barra" id="barra" style="display:none"></div>
+  </div>
+</div>
+<script src="dados.js?v=15"></script>
+<script>window.MODO = "cp";</script>
+<script src="comum.js?v=15"></script>
+<script src="tela-a.js?v=15"></script>
+<script src="hist.js?v=15"></script>
+<script src="ajuste.js?v=15"></script>
+</body>
+</html>

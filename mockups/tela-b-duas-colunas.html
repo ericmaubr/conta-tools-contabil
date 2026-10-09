@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conciliação · B</title>
+<link rel="stylesheet" href="comum.css?v=15">
+<style>
+  .wrap { padding: 14px 20px 0; }
+  .lados { display: flex; gap: 14px; margin-top: 12px; }
+  .lado { flex: 1; min-width: 0; background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.08); overflow: hidden; }
+  .lado h3 { margin: 0; padding: 9px 12px; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: #1a3c5e; background: #f0f2f5; display: flex; justify-content: space-between; }
+  .lado .rolo { max-height: 42vh; overflow-y: auto; }
+  .pares { margin: 14px 0; }
+  details { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 10px; }
+  summary { padding: 10px 14px; cursor: pointer; font-weight: 600; color: #1a3c5e; }
+  .par { border-top: 1px solid #f0f2f5; padding: 6px 14px; display: grid; grid-template-columns: 1fr 1fr 190px 64px; gap: 12px; align-items: start; font-size: 12px; }
+  .par .ls div { display: flex; justify-content: space-between; gap: 8px; }
+  .par .tag { white-space: normal; }
+  .nav-conta { display: flex; gap: 6px; align-items: center; }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <select id="f-grupo"></select>
+  <select id="f-conta" style="max-width:380px"></select>
+  <div class="nav-conta">
+    <button class="secundario" id="ant" title="Conta anterior com pendência">◀</button>
+    <button class="secundario" id="prox" title="Próxima conta com pendência">Próxima pendente ▶</button>
+  </div>
+  <label><input type="checkbox" id="f-pend" checked> só contas com pendência</label>
+  <button class="secundario" style="margin-left:auto" onclick="exportarExcel()">⬇ Excel</button>
+</div>
+<div class="wrap">
+  <div class="cartao" id="cab"></div>
+  <div class="lados">
+    <div class="lado"><h3><span>Créditos sem par</span><span id="t-c"></span></h3><div class="rolo"><table id="tab-c"></table></div></div>
+    <div class="lado"><h3><span>Débitos sem par</span><span id="t-d"></span></h3><div class="rolo"><table id="tab-d"></table></div></div>
+  </div>
+  <div class="pares" id="pares"></div>
+</div>
+<div class="barra" id="barra"></div>
+<script src="dados.js?v=15"></script>
+<script src="comum.js?v=15"></script>
+<script>
+montarCabecalho('Conciliação contábil');
+opcoesGrupo($('f-grupo'), '2.1.1.01');
+let atual = null, marcados = new Set();
+
+function contasVisiveis() {
+  let cs = contasDoGrupo($('f-grupo').value);
+  if ($('f-pend').checked) cs = cs.filter(c => { const r = resumo(c); return r.abertos || r.sugestoes; });
+  return cs.sort((a, b) => a.nome.localeCompare(b.nome));
+}
+function preencherContas() {
+  const cs = contasVisiveis();
+  $('f-conta').innerHTML = cs.map(c => { const r = resumo(c);
+    return `<option value="${c.i}">${esc(c.nome)} · ${c.red}${r.abertos ? ' · ' + r.abertos + ' em aberto' : ''}${r.sugestoes ? ' · ' + r.sugestoes + ' p/ revisar' : ''}</option>`; }).join('');
+  if (!cs.includes(atual)) atual = cs.find(c => c.nome.startsWith('VIANA')) || cs[0] || null;
+  if (atual) $('f-conta').value = atual.i;
+  render();
+}
+function irPara(delta) {
+  const cs = contasVisiveis(); if (!cs.length) return;
+  let k = cs.indexOf(atual) + delta; k = (k + cs.length) % cs.length;
+  atual = cs[k]; marcados.clear(); $('f-conta').value = atual.i; render();
+}
+
+function render() {
+  if (!atual) { $('cab').innerHTML = '<span class="muted">Nenhuma conta com pendência neste grupo. ✓</span>'; $('tab-c').innerHTML = $('tab-d').innerHTML = $('pares').innerHTML = ''; return barra(); }
+  const c = atual, r = resumo(c), ab = abertos(c);
+  $('cab').innerHTML = `<div><b style="font-size:15px">${esc(c.nome)}</b> <span class="muted">${c.cls} · reduzida ${c.red}${c.cnpj ? ' · CNPJ ' + esc(c.cnpj) : ''}</span></div>
+    <div class="resumo" style="margin-top:8px"><div><small>Saldo anterior</small><b>${fmt(c.saldo_ant)}</b></div>
+    <div><small>Saldo final (D−C)</small><b class="${r.saldo < 0 ? 'neg' : ''}">${fmt(r.saldo)}</b></div>
+    <div><small>Em aberto</small><b>${r.abertos}</b></div><div><small>Para revisar</small><b>${r.sugestoes}</b></div></div>`;
+  const lado = (ls, el, tot) => {
+    $(tot).textContent = `${ls.length} · ${fmt(Math.abs(soma(ls)))}`;
+    $(el).innerHTML = '<tr><th></th><th>Data</th><th>Histórico</th><th class="n">Valor</th></tr>' + (ls.map(l => `
+      <tr class="clicavel ${marcados.has(l.id) ? 'marcado' : ''}" data-id="${l.id}"><td><input type="checkbox" ${marcados.has(l.id) ? 'checked' : ''}></td>
+      <td>${l.data}</td><td class="hist">${l.ant ? '<span class="tag ant">período anterior</span> ' : ''}${esc(l.hist)}</td><td class="n">${fmt(Math.abs(l.v))}</td></tr>`).join('')
+      || '<tr><td colspan="4" class="muted" style="padding:14px;text-align:center">Nada sem par ✓</td></tr>');
+  };
+  lado(ab.filter(l => l.v < 0), 'tab-c', 't-c');
+  lado(ab.filter(l => l.v > 0), 'tab-d', 't-d');
+  document.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => { const id = +tr.dataset.id; marcados.has(id) ? marcados.delete(id) : marcados.add(id); render(); });
+
+  const gs = grupos(c), sug = gs.filter(x => x.st === 'sugestao'), ok = gs.filter(x => x.st !== 'sugestao');
+  const par = (x, acoes) => `<div class="par"><div class="ls">${x.ls.filter(l => l.v < 0).map(l => `<div><span>${l.data} ${esc(l.hist)}</span><span class="n">${fmt(-l.v)}</span></div>`).join('')}</div>
+    <div class="ls">${x.ls.filter(l => l.v > 0).map(l => `<div><span>${l.data} ${esc(l.hist)}</span><span class="n">${fmt(l.v)}</span></div>`).join('')}</div>
+    <div><span class="tag ${x.st}">${MOTIVO[x.m]}</span>${Math.abs(x.soma) >= 0.005 ? `<div class="neg">dif. ${fmt(x.soma)}</div>` : ''}</div><div style="text-align:right">${acoes}</div></div>`;
+  $('pares').innerHTML =
+    (sug.length ? `<details open><summary>🔎 Pares sugeridos para revisar (${sug.length})</summary>${sug.map(x => par(x, `<button class="btn-icone" data-aceitar="${x.g}" title="Aceitar">✓</button> <button class="btn-icone excluir" data-desfazer="${x.g}" title="Recusar: volta para sem par">✕</button>`)).join('')}</details>` : '') +
+    `<details><summary>✓ Pares conciliados (${ok.length})</summary>${ok.map(x => par(x, `<button class="btn-icone excluir" data-desfazer="${x.g}" title="Desfazer o par">↶</button>`)).join('')}</details>`;
+  $('pares').querySelectorAll('[data-aceitar]').forEach(b => b.onclick = () => { aceitar(c, +b.dataset.aceitar); alerta('Par aceito.'); render(); });
+  $('pares').querySelectorAll('[data-desfazer]').forEach(b => b.onclick = () => { desfazer(c, +b.dataset.desfazer); alerta('Lançamentos voltaram para "sem par".', 'info'); render(); });
+  barra();
+}
+
+function barra() {
+  const ls = atual ? atual.lanc.filter(l => marcados.has(l.id)) : [];
+  const cr = -soma(ls.filter(l => l.v < 0)), db = soma(ls.filter(l => l.v > 0)), s = soma(ls), fecha = ls.length > 1 && Math.abs(s) <= TOLERANCIA;
+  $('barra').innerHTML = `<span>Marcados: créditos ${fmt(cr)} · débitos ${fmt(db)}</span><span class="${fecha ? 'dif0' : 'difx'}">Diferença ${fmt(s)}</span>
+    <button class="secundario" style="margin-left:auto" id="limpar" ${ls.length ? '' : 'disabled'}>Limpar</button><button class="verde" id="conciliar" ${fecha ? '' : 'disabled'}>Conciliar</button>`;
+  $('limpar').onclick = () => { marcados.clear(); render(); };
+  $('conciliar').onclick = () => { const err = agrupar(atual, marcados); if (err) return alerta(err, 'erro'); marcados.clear(); alerta('Conciliado.'); preencherContas(); };
+}
+
+$('f-grupo').onchange = $('f-pend').onchange = () => { atual = null; preencherContas(); };
+$('f-conta').onchange = () => { atual = D.contas[$('f-conta').value]; marcados.clear(); render(); };
+$('ant').onclick = () => irPara(-1);
+$('prox').onclick = () => irPara(1);
+preencherContas();
+</script>
+</body>
+</html>

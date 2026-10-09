@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conciliação · V1</title>
+<link rel="stylesheet" href="comum.css?v=23">
+<style>
+  .app { display: flex; height: calc(100vh - 128px); }
+  .lateral { width: 320px; flex: none; background: #fff; border-right: 1px solid #e2e5eb; display: flex; flex-direction: column; }
+  .lateral .filtros { padding: 10px; border-bottom: 1px solid #e2e5eb; display: flex; flex-direction: column; gap: 6px; }
+  .lateral .lista { overflow-y: auto; flex: 1; }
+  .item { padding: 7px 10px; border-bottom: 1px solid #f0f2f5; cursor: pointer; border-left: 3px solid transparent; }
+  .item:hover { background: #f7f9fb; }
+  .item.atual { background: #eef3f8; border-left-color: #1a3c5e; }
+  .item .nome { font-weight: 600; font-size: 12px; }
+  .item .sub { font-size: 11px; color: #888; display: flex; justify-content: space-between; gap: 6px; margin-top: 2px; }
+  .principal { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+  .principal .conteudo { padding: 14px 20px; flex: 1; }
+  tr.grp td { background: #f5f8fb; font-weight: 600; color: #1a3c5e; cursor: pointer; }
+  tr.grp:hover td { background: #eaf0f7; }
+  tr.secao td { background: #fff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #1a3c5e; padding-top: 14px; border-bottom: 2px solid #1a3c5e; }
+  .seta { display: inline-block; width: 14px; transition: transform .15s; }
+  .seta.aberta { transform: rotate(90deg); }
+  .contagem { font-size: 11px; color: #888; padding: 4px 10px; }
+  tr.secao td.tot { color: #1a3c5e; font-size: 12px; text-transform: none; letter-spacing: 0; }
+  tr.grp td.tot { font-weight: 600; }
+  tr.sub td { background: #fafbfc; font-size: 12px; cursor: pointer; color: #1f2430; }
+  tr.sub:hover td { background: #eef3f8; }
+  tr.sub td.tot { font-weight: 600; color: #1a3c5e; }
+  td.dif { border-left: 1px solid #e2e5eb; font-weight: 600; }
+  tr.total td { background: #1a3c5e; color: #fff; font-weight: 700; padding: 7px 8px; }
+  /* cabeçalho da conta: classificação, reduzida, CNPJ e os rótulos dos saldos em preto, não em cinza */
+  #cab .muted, #cab .resumo small { color: #1f2430; }
+  /* coluna Contrapartida (4ª): a descrição da conta em preto */
+  /* tabela inteira: nenhum texto em cinza (contrapartida, "2 lanç.", quem fez e quando, pagamento esperado) */
+  #tab .muted, #tab td.muted { color: #1f2430; }
+  /* e no resto da tela: período, faixa do topo, painéis e telas de NFS-e/ajuste */
+  .muted, .faixa, .modal .sub, #nf-tela .muted, .toolbar label, .teclas, .teclas kbd, th { color: #1f2430 !important; }
+  /* a área das contas ocupa o que sobra da janela (com a faixa do topo): a barra de seleção fica visível no fundo */
+  body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  .app { flex: 1; min-height: 0; height: auto !important; }
+  #nf-tela { flex: 1; min-height: 0; height: auto !important; }
+  /* lista de contas à esquerda: classificação, reduzida, saldo e a contagem em preto */
+  .item .sub, .contagem { color: #1f2430; }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <label>Período <select><option>01/2026 a 07/2026</option></select></label>
+  <span class="muted" style="font-size:12px">Razão e balancete importados em 08/10/2026 · plano de contas de 08/10/2026</span>
+  <button class="secundario" style="margin-left:auto" onclick="alerta('No sistema real: envia um razão novo do IGC; o que já foi conciliado é mantido.','info')">⬆ Importar razão</button>
+  <button class="secundario" onclick="exportarExcel()">⬇ Excel</button>
+</div>
+<div class="app">
+  <div class="lateral">
+    <div class="filtros">
+      <select id="f-grupo"></select>
+      <input type="text" id="f-busca" placeholder="🔍 buscar conta (nome ou código)">
+      <label style="font-size:12px"><input type="checkbox" id="f-pend" checked> só contas com pendência</label>
+    </div>
+    <div class="contagem" id="contagem"></div>
+    <div class="lista" id="lista"></div>
+  </div>
+  <div class="principal">
+    <div class="conteudo">
+      <div class="cartao" id="cab"></div>
+      <div style="display:flex;gap:8px;margin:12px 0 6px">
+        <button class="secundario" id="abrir-todos">▾ Expandir conciliados</button>
+        <button class="secundario" id="fechar-todos">▸ Recolher</button>
+        <span class="teclas">Teclado: <kbd>↑</kbd><kbd>↓</kbd> mover · <kbd>Espaço</kbd> marcar ou abrir · <kbd>Enter</kbd> aceitar ou agrupar · <kbd>X</kbd> recusar · <kbd>C</kbd> próximo candidato · <kbd>[</kbd><kbd>]</kbd> conta anterior/seguinte · <kbd>Ctrl</kbd>+<kbd>Z</kbd> desfazer</span>
+      </div>
+      <table id="tab"></table>
+    </div>
+    <div class="barra" id="barra" style="display:none"></div>
+  </div>
+</div>
+<script src="dados.js?v=18"></script>
+<script>window.MODO = "cp"; window.TELA_V1 = true; window.ABRIR_PRIMEIRA = true; window.PERIODO_FIM = "2026-07-31";
+// cobertura REAL da Brasil Reverso no nfts (consulta de 09/10/2026, mesmas funções da rota /cobertura)
+window.NFTS_COBERTURA = { ultima_sincronizacao: "08/10/2026 02:00", ultima_sincronizacao_ok: true, ultima_sincronizacao_erro: null, ultima_data_emissao: "2026-10-08", tem_certificado: true };</script>
+<script src="comum.js?v=23"></script>
+<script>window.AJ_ICON = "📝";</script>
+<script src="tela-a.js?v=23"></script>
+<script src="hist.js?v=18"></script>
+<script src="ajuste.js?v=18"></script>
+<script src="dados-nfse.js?v=23"></script>
+<script>window.NFSE_MODO = "n5";</script>
+<script src="nfse.js?v=23"></script>
+<script src="n5.js?v=18"></script>
+</body>
+</html>

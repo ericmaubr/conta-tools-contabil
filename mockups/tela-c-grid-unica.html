@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conciliação · C</title>
+<link rel="stylesheet" href="comum.css?v=15">
+<style>
+  .wrap { padding: 12px 20px 0; }
+  .grade { margin-top: 10px; background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.08); max-height: calc(100vh - 290px); overflow-y: auto; }
+  .tag.link { cursor: pointer; }
+  .tag.link:hover { outline: 1px solid #1a3c5e; }
+  .filtro-grupo { background: #e8f5e9; color: #1b5e20; padding: 4px 10px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <select id="f-grupo"></select>
+  <select id="f-conta" style="max-width:380px"></select>
+  <button class="secundario" style="margin-left:auto" onclick="exportarExcel()">⬇ Excel</button>
+</div>
+<div class="wrap">
+  <div class="cartao" id="cab"></div>
+  <div class="toolbar" style="padding:10px 0;background:none;border:none">
+    <button class="chip" data-f="todos">Todos</button>
+    <button class="chip" data-f="aberto">Em aberto</button>
+    <button class="chip" data-f="sugestao">Sugestões p/ revisar</button>
+    <button class="chip" data-f="conciliado">Conciliados</button>
+    <input type="text" id="f-texto" placeholder="🔍 filtrar histórico ou valor" style="width:240px">
+    <span id="f-g"></span>
+  </div>
+  <div class="grade"><table id="tab"></table></div>
+</div>
+<div class="barra" id="barra"></div>
+<script src="dados.js?v=15"></script>
+<script src="comum.js?v=15"></script>
+<script>
+montarCabecalho('Conciliação contábil');
+opcoesGrupo($('f-grupo'), '1.1.2.01');
+let atual = null, marcados = new Set(), filtro = 'todos', soGrupo = null, ord = { col: 'data', dir: 1 };
+
+function preencherContas() {
+  const cs = contasDoGrupo($('f-grupo').value).sort((a, b) => a.nome.localeCompare(b.nome));
+  $('f-conta').innerHTML = cs.map(c => { const r = resumo(c);
+    return `<option value="${c.i}">${esc(c.nome)} · ${c.red} · ${r.abertos ? r.abertos + ' em aberto' : '✓'}</option>`; }).join('');
+  atual = cs.find(c => c.nome.startsWith('DUPLICATAS')) || cs.find(c => c.nome.startsWith('VIANA')) || cs[0];
+  $('f-conta').value = atual.i; trocar();
+}
+function trocar() { marcados.clear(); soGrupo = null; render(); }
+
+const dataNum = d => d.slice(6) + d.slice(3, 5) + d.slice(0, 2);
+function statusLinha(l) { return l.g == null ? 'aberto' : STATUS[l.m] === 'sugestao' ? 'sugestao' : 'conciliado'; }
+
+function render() {
+  const c = atual, r = resumo(c), nomes = new Map(grupos(c).map(x => [x.g, x]));
+  $('cab').innerHTML = `<div><b style="font-size:15px">${esc(c.nome)}</b> <span class="muted">${c.cls} · reduzida ${c.red}${c.cnpj ? ' · CNPJ ' + esc(c.cnpj) : ''}</span></div>
+    <div class="resumo" style="margin-top:8px"><div><small>Saldo anterior</small><b>${fmt(c.saldo_ant)}</b></div>
+    <div><small>Saldo final (D−C)</small><b class="${r.saldo < 0 ? 'neg' : ''}">${fmt(r.saldo)}</b></div>
+    <div><small>Lançamentos</small><b>${c.lanc.length}</b></div><div><small>Em aberto</small><b>${r.abertos} · ${fmt(r.somaAbertos)}</b></div><div><small>Para revisar</small><b>${r.sugestoes}</b></div></div>`;
+  document.querySelectorAll('.chip').forEach(b => {
+    b.classList.toggle('ativo', b.dataset.f === filtro);
+    const n = b.dataset.f === 'todos' ? c.lanc.length : c.lanc.filter(l => statusLinha(l) === b.dataset.f).length;
+    b.textContent = b.textContent.replace(/ \(\d+\)$/, '') + ` (${n})`;
+  });
+  $('f-g').innerHTML = soGrupo != null ? `<span class="filtro-grupo">Mostrando só ${esc(nomes.get(soGrupo)?.nome || '')} <a href="#" id="tira-g">✕</a></span>` : '';
+  if (soGrupo != null) $('tira-g').onclick = e => { e.preventDefault(); soGrupo = null; render(); };
+
+  const t = $('f-texto').value.trim().toUpperCase();
+  let ls = c.lanc.filter(l => (filtro === 'todos' || statusLinha(l) === filtro) && (soGrupo == null || l.g === soGrupo)
+    && (!t || l.hist.toUpperCase().includes(t) || fmt(Math.abs(l.v)).includes(t)));
+  const chave = { data: l => dataNum(l.data) + String(l.id + 10).padStart(6, '0'), hist: l => l.hist, deb: l => l.v, grupo: l => l.g == null ? -1 : l.g }[ord.col];
+  ls.sort((a, b) => { const x = chave(a), y = chave(b); return (x > y ? 1 : x < y ? -1 : 0) * ord.dir; });
+
+  const th = (col, txt, cls) => `<th class="ord ${cls || ''}" data-col="${col}">${txt}${ord.col === col ? (ord.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`;
+  $('tab').innerHTML = `<tr><th></th>${th('grupo', 'Grupo')}${th('data', 'Data')}${th('hist', 'Histórico')}<th>CP</th>${th('deb', 'Débito', 'n')}<th class="n">Crédito</th><th></th></tr>` +
+    ls.slice(0, 600).map(l => {
+      const st = statusLinha(l), x = nomes.get(l.g);
+      const tag = st === 'aberto' ? '<span class="tag aberto">em aberto</span>'
+        : `<span class="tag link ${x.st}" data-g="${l.g}" title="${esc(MOTIVO[x.m])} · clique para ver só este grupo">${esc(x.nome)}</span>`;
+      const acao = st === 'sugestao' ? `<button class="btn-icone" data-aceitar="${l.g}" title="Aceitar sugestão">✓</button> <button class="btn-icone excluir" data-desfazer="${l.g}" title="Recusar sugestão">✕</button>`
+        : st === 'conciliado' ? `<button class="btn-icone excluir" data-desfazer="${l.g}" title="Desagrupar (o grupo inteiro volta a Em aberto)">↶</button>` : '';
+      return `<tr class="${st === 'aberto' ? 'aberto clicavel' : ''} ${marcados.has(l.id) ? 'marcado' : ''} ${soGrupo != null && l.g === soGrupo ? 'destaque' : ''}" ${st === 'aberto' ? `data-id="${l.id}"` : ''}>
+        <td style="width:28px">${st === 'aberto' ? `<input type="checkbox" ${marcados.has(l.id) ? 'checked' : ''}>` : ''}</td><td>${tag}</td><td>${l.data}</td>
+        <td class="hist">${l.ant ? '<span class="tag ant">período anterior</span> ' : ''}${esc(l.hist)}</td><td>${esc(l.cp)}</td>
+        <td class="n">${l.v > 0 ? fmt(l.v) : ''}</td><td class="n">${l.v < 0 ? fmt(-l.v) : ''}</td><td style="text-align:right">${acao}</td></tr>`;
+    }).join('') + (ls.length > 600 ? `<tr><td colspan="8" class="muted" style="padding:10px">… mais ${ls.length - 600} linhas (use os filtros)</td></tr>` : '')
+    + (ls.length ? '' : '<tr><td colspan="8" class="muted" style="padding:14px">Nenhum lançamento neste filtro.</td></tr>');
+
+  $('tab').querySelectorAll('th.ord').forEach(h => h.onclick = () => { ord = { col: h.dataset.col, dir: ord.col === h.dataset.col ? -ord.dir : 1 }; render(); });
+  $('tab').querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => { const id = +tr.dataset.id; marcados.has(id) ? marcados.delete(id) : marcados.add(id); render(); });
+  $('tab').querySelectorAll('.tag.link').forEach(s => s.onclick = () => { soGrupo = +s.dataset.g; render(); });
+  $('tab').querySelectorAll('[data-aceitar]').forEach(b => b.onclick = () => { aceitar(c, +b.dataset.aceitar); alerta('Sugestão aceita.'); render(); });
+  $('tab').querySelectorAll('[data-desfazer]').forEach(b => b.onclick = () => { desfazer(c, +b.dataset.desfazer); soGrupo = null; alerta('Grupo desfeito: lançamentos em aberto.', 'info'); render(); });
+  barra();
+}
+
+function barra() {
+  const ls = atual.lanc.filter(l => marcados.has(l.id));
+  const s = soma(ls), fecha = ls.length > 1 && Math.abs(s) <= TOLERANCIA;
+  $('barra').innerHTML = `<span>${ls.length} marcados</span><span>D ${fmt(soma(ls.filter(l => l.v > 0)))}</span><span>C ${fmt(-soma(ls.filter(l => l.v < 0)))}</span>
+    <span class="${fecha ? 'dif0' : 'difx'}">Diferença ${fmt(s)}</span>
+    <button class="secundario" style="margin-left:auto" id="limpar" ${ls.length ? '' : 'disabled'}>Limpar</button><button class="verde" id="agrupar" ${fecha ? '' : 'disabled'}>Agrupar</button>`;
+  $('limpar').onclick = () => { marcados.clear(); render(); };
+  $('agrupar').onclick = () => { const err = agrupar(atual, marcados); if (err) return alerta(err, 'erro'); marcados.clear(); alerta('Grupo criado.'); render(); };
+}
+
+document.querySelectorAll('.chip').forEach(b => b.onclick = () => { filtro = b.dataset.f; render(); });
+$('f-texto').oninput = render;
+$('f-grupo').onchange = preencherContas;
+$('f-conta').onchange = () => { atual = D.contas[$('f-conta').value]; trocar(); };
+preencherContas();
+</script>
+</body>
+</html>
