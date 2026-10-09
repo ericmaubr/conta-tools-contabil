@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "conta-tools-contabil"
-version = "0.1.0"
+version = "0.1.1"
 description = "Conciliação contábil a partir das exportações do IGC (razão, balancete, plano de contas)"
 requires-python = ">=3.11"
 authors = [{ name = "Eric Mauricio" }]
