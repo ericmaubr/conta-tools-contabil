@@ -38,3 +38,17 @@ def test_plano_real():
     p = ler_plano(PLANO.read_bytes())
     assert sum(1 for c in p.contas if c.reduzido) == 1666
     assert any("ALUGUÉIS" in c.descricao for c in p.contas)
+
+
+def test_arquivos_reais_nao_tem_divergencia():
+    from conta_tools_contabil.igc.balancete import ler_balancete
+    from conta_tools_contabil.igc.plano import ler_plano
+    from conta_tools_contabil.igc.razao import ler_razao
+    from conta_tools_contabil.importacao.conferencias import conferir, saldos_por_mes
+
+    r = ler_razao(RAZAO.read_bytes())
+    b = ler_balancete(BALANCETE.read_bytes())
+    p = ler_plano(PLANO.read_bytes())
+    divs = conferir(r, b, p, mes_inicio="2026-01", mes_fim="2026-07", saldo_final_anterior={})
+    assert divs == []
+    assert len(saldos_por_mes(r, b, mes_inicio="2026-01", mes_fim="2026-07")) == 378 * 7

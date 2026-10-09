@@ -39,7 +39,9 @@ def test_numero_br_recusa_formato_inesperado(texto):
 
 @pytest.mark.parametrize(
     "texto, esperado",
-    [("28.581,14 D", "28581.14"), ("2.875.157,33 C", "-2875157.33"), ("0,00", "0")],
+    [("28.581,14 D", "28581.14"), ("2.875.157,33 C", "-2875157.33"), ("0,00", "0"),
+     # menos = saldo contra a natureza da conta; o lado real é a letra (balancete real, 67 contas)
+     ("-28,74 C", "-28.74"), ("-175,92 D", "175.92"), ("-2.875.157,33 D", "2875157.33")],
 )
 def test_saldo_dc(texto, esperado):
     assert saldo_dc(texto) == Decimal(esperado)

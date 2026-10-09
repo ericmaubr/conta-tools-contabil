@@ -65,15 +65,19 @@ def numero_br(texto: str) -> Decimal:
         return Decimal("0")
     if not _NUMERO.fullmatch(t):
         raise ArquivoInvalido(f"valor fora do formato 1.234,56: {texto!r}")
-    return Decimal(t.replace(".", "").replace(",", "."))  # conversao-ok: formato já validado por _NUMERO
+    return Decimal(t.replace(".", "").replace(",", "."))  # conversao-ok: validado por _NUMERO
 
 
 def saldo_dc(texto: str) -> Decimal:
-    """Saldo do balancete com o lado: `"1.234,56 D"` -> 1234.56, `"... C"` -> negativo (D − C)."""
+    """Saldo do balancete com o lado: `"1.234,56 D"` -> 1234.56, `"... C"` -> negativo (D − C).
+
+    O IGC põe sinal de menos no saldo que está contra a natureza da conta ("-28,74 C" num ativo):
+    o lado real é a letra, então o menos é ignorado. Usar os dois inverte o sinal (67 contas no
+    balancete real da Brasil Reverso)."""
     m = re.fullmatch(r"(\S+)\s*([DC]?)", texto.strip())
     if not m:
         raise ArquivoInvalido(f"saldo fora do formato '1.234,56 D': {texto!r}")
-    valor = numero_br(m.group(1))
+    valor = abs(numero_br(m.group(1)))
     if valor and not m.group(2):
         raise ArquivoInvalido(f"saldo sem o lado D/C: {texto!r}")
     return -valor if m.group(2) == "C" else valor
