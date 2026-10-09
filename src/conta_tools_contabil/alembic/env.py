@@ -21,12 +21,18 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-from conta_tools_contabil.db import get_database_url, metadata  # noqa: E402
+from conta_tools_contabil.db import get_database_url, metadata, url_explicita  # noqa: E402
 
 target_metadata = metadata
 
 
 def _resolver_url() -> str:
+    # A URL explícita (migrar --conf/--db-url) vem PRIMEIRO. Antes o api.conf da pasta atual
+    # ganhava dela: no deploy de 2026-10-09, rodando de C:\ContaTools\consoli, o migrar do
+    # contabil conectou no banco do Consoli.
+    explicita = url_explicita()
+    if explicita:
+        return explicita
     env = os.environ.get("DATABASE_URL")
     if env:
         return env

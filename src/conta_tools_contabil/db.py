@@ -94,6 +94,11 @@ def set_database_url(url: str) -> None:
     _engine = None
 
 
+def url_explicita() -> str | None:
+    """URL definida por `set_database_url` (CLI com --conf/--db-url), ou None."""
+    return _database_url_override
+
+
 def get_database_url() -> str:
     return resolver_database_url(_database_url_override, "contabil")
 
