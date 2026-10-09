@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conciliação contábil · Importar do IGC</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: 13px; background: #f5f6f8; color: #1f2430; }
+  header { background: #1a3c5e; color: #fff; padding: 11px 20px; display: flex; align-items: center; gap: 16px; position: relative; }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  header .version { font-size: 11px; color: rgba(255,255,255,.35); margin-left: auto; }
+  .hamburger { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; border-radius: 5px; color: #fff; flex: none; }
+  .hamburger:hover { background: rgba(255,255,255,.12); }
+  .hamburger svg { width: 16px; height: 16px; }
+  #auth-painel { display: none; position: absolute; top: 46px; left: 8px; z-index: 30; background: #fff; color: #1f2430; border: 1px solid #d3d7de; border-radius: 8px; min-width: 230px; box-shadow: 0 8px 24px rgba(0,0,0,.16); padding: 14px; }
+  #auth-painel.aberto { display: block; }
+  #auth-painel .nav-links { display: flex; flex-direction: column; gap: 2px; }
+  #auth-painel .nav-links a { display: flex; align-items: center; gap: 9px; padding: 8px; font-size: 13px; border-radius: 6px; text-decoration: none; color: #1f2430; }
+  #auth-painel .nav-links a:hover { background: #eef3f8; }
+  #auth-painel .nav-links a.atual { color: #1a3c5e; font-weight: 600; }
+  #auth-painel .nav-links a .dot { width: 6px; height: 6px; border-radius: 50%; background: #c2c7d0; flex: none; }
+  #auth-painel .nav-links a.atual .dot { background: #1a3c5e; }
+  main { max-width: 980px; margin: 20px auto; padding: 0 16px; }
+  .cartao { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.08); padding: 16px 18px; margin-bottom: 16px; }
+  h2 { font-size: 15px; margin: 0 0 12px; color: #1a3c5e; }
+  .campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 18px; }
+  label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+  input[type=file], input[type=month] { width: 100%; padding: 5px; border: 1px solid #c9d2dc; border-radius: 4px; background: #fff; color: #1f2430; font-size: 13px; }
+  button.principal { margin-top: 14px; padding: 7px 16px; border: none; border-radius: 4px; background: #2e7d32; color: #fff; font-weight: 600; cursor: pointer; }
+  button.principal:disabled { opacity: .5; cursor: wait; }
+  .ok { border-left: 4px solid #2e7d32; background: #e8f5e9; padding: 10px 12px; border-radius: 6px; font-weight: 600; }
+  .recusa { border-left: 4px solid #c62828; background: #fdecea; padding: 10px 12px; border-radius: 6px; font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid #eef0f3; font-size: 12px; color: #1f2430; }
+  th { background: #f0f2f5; }
+</style>
+</head>
+<body>
+<header>
+  <button class="hamburger" id="btn-menu" aria-label="Menu">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div id="auth-painel"><div class="nav-links"></div></div>
+  <h1>Conciliação contábil · Importar do IGC</h1>
+  <span class="version" id="app-version"></span>
+</header>
+<main>
+  <div class="cartao">
+    <h2>Importar razão, balancete e plano de contas</h2>
+    <form id="form">
+      <div class="campos">
+        <div><label for="razao">Razão (RAZAO - ….xls)</label><input type="file" id="razao" name="razao" accept=".xls,.htm,.html" required></div>
+        <div><label for="balancete">Balancete do mesmo período</label><input type="file" id="balancete" name="balancete" accept=".xls,.htm,.html" required></div>
+        <div><label for="plano">Plano de contas</label><input type="file" id="plano" name="plano" accept=".xls,.htm,.html" required></div>
+        <div><label for="mes_inicio">Mês inicial</label><input type="month" id="mes_inicio" name="mes_inicio" required></div>
+        <div><label for="mes_fim">Mês final</label><input type="month" id="mes_fim" name="mes_fim" required></div>
+      </div>
+      <button class="principal" id="enviar" type="submit">Importar e conferir</button>
+    </form>
+    <div id="resultado" style="margin-top:14px"></div>
+  </div>
+  <div class="cartao">
+    <h2>Importações</h2>
+    <div id="lista">Carregando…</div>
+  </div>
+</main>
+<script src="nav.js"></script>
+<script>
+montarNavLinks('importacao');
+fetch('version').then(r => r.json()).then(d => { document.getElementById('app-version').textContent = 'v' + d.version; }).catch(() => {});
+document.getElementById('btn-menu').addEventListener('click', e => { e.stopPropagation(); document.getElementById('auth-painel').classList.toggle('aberto'); });
+document.addEventListener('click', () => document.getElementById('auth-painel').classList.remove('aberto'));
+document.getElementById('auth-painel').addEventListener('click', e => e.stopPropagation());
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmtCnpj = c => /^[0-9A-Z]{14}$/.test(c) ? `${c.slice(0,2)}.${c.slice(2,5)}.${c.slice(5,8)}/${c.slice(8,12)}-${c.slice(12)}` : c;
+const fmtMes = m => m ? m.slice(5) + '/' + m.slice(0, 4) : '';
+
+document.getElementById('form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const botao = document.getElementById('enviar'), saida = document.getElementById('resultado');
+  botao.disabled = true; botao.textContent = 'Conferindo…'; saida.innerHTML = '';
+  try {
+    const resp = await contaToolsFetch('importacoes', { method: 'POST', body: new FormData(e.target) });
+    const corpo = await resp.json();
+    if (!resp.ok) { saida.innerHTML = `<div class="recusa">${esc(corpo.detail || 'Erro ao importar')}</div>`; return; }
+    saida.innerHTML = corpo.aceita
+      ? `<div class="ok">✓ Importação aceita: ${esc(corpo.empresa_nome)} (${fmtCnpj(corpo.cnpj)}), ${corpo.contas} contas, ${corpo.lancamentos} lançamentos.</div>`
+      : `<div class="recusa">Importação recusada: ${corpo.divergencias.length} divergência(s). Nada foi gravado.</div>
+         <table><tr><th>Conferência</th><th>Conta</th><th>O que não bateu</th></tr>
+         ${corpo.divergencias.map(d => `<tr><td>${esc(d.conferencia)}</td><td>${esc(d.reduzido || '')}</td><td>${esc(d.mensagem)}</td></tr>`).join('')}</table>`;
+    carregarLista();
+  } finally {
+    botao.disabled = false; botao.textContent = 'Importar e conferir';
+  }
+});
+
+async function carregarLista() {
+  const resp = await contaToolsFetch('importacoes');
+  const linhas = resp.ok ? await resp.json() : [];
+  document.getElementById('lista').innerHTML = linhas.length
+    ? `<table><tr><th>Quando</th><th>Quem</th><th>Empresa</th><th>CNPJ</th><th>Período</th><th>Resultado</th></tr>
+       ${linhas.map(l => `<tr><td>${esc(l.criado_em.replace('T', ' ').slice(0, 16))}</td><td>${esc(l.quem)}</td><td>${esc(l.empresa_nome)}</td>
+         <td>${fmtCnpj(l.cnpj)}</td><td>${fmtMes(l.mes_inicio)} a ${fmtMes(l.mes_fim)}</td>
+         <td>${l.status === 'aceita' ? `✓ aceita (${l.lancamentos} lançamentos)` : `recusada (${l.divergencias.length} divergências)`}</td></tr>`).join('')}</table>`
+    : 'Nenhuma importação ainda.';
+}
+carregarLista();
+</script>
+</body>
+</html>

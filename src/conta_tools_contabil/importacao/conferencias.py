@@ -140,8 +140,10 @@ def conferir(
             add("conta_fora_do_plano", b.reduzido,
                 f"conta {b.reduzido} {b.descricao} está no balancete e não no plano de contas")
 
-    # continuidade com o mês anterior já gravado
-    for reduzido, saldo in saldo_final_anterior.items():
+    # continuidade com o mês anterior já gravado. Com o período divergente ela não faz sentido (o
+    # arquivo não começa no mês informado) e, no caso real, virou 133 linhas escondendo a `periodo`
+    periodo_ok = not any(d.conferencia == "periodo" for d in div)
+    for reduzido, saldo in saldo_final_anterior.items() if periodo_ok else ():
         atual = bal[reduzido].saldo_anterior if reduzido in bal else ZERO
         if atual != saldo:
             add("saldo_anterior", reduzido,

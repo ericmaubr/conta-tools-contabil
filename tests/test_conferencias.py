@@ -124,3 +124,10 @@ def test_saldos_por_mes():
     assert (fev.saldo_anterior, fev.credito, fev.saldo_final) == (D("150"), D("20"), D("130"))
     assert s["3-5", "2026-02"].saldo_final == D("-70")  # conta sem movimento entra com o saldo
     assert len(s) == 8  # 4 contas x 2 meses
+
+
+def test_periodo_errado_nao_soterra_com_saldo_anterior():
+    """Com o período divergente, comparar o saldo anterior com o mês anterior gravado não faz
+    sentido: no caso real virou 133 divergências escondendo a de período."""
+    divs = _conferir(*_cenario(), anterior={"1-9": D("99")}, ini="2026-02")
+    assert _codigos(divs) == ["periodo"]
