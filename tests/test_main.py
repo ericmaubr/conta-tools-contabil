@@ -6,6 +6,8 @@ def _rodar(*args):
     return subprocess.run(
         [sys.executable, "-m", "conta_tools_contabil", *args],
         capture_output=True, text=True, timeout=60,
+        # sem isto o Windows levanta WinError 6 quando quem roda o pytest não tem stdin
+        stdin=subprocess.DEVNULL,
     )
 
 
