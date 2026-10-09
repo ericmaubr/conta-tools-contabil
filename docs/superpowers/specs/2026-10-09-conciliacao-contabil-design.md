@@ -211,7 +211,7 @@ Serviço web próprio, irmão do conta-tools-nfts, sem card no launcher.
 
 - **Pacote** `conta_tools_contabil` (src layout), FastAPI + uvicorn, SQLAlchemy Core, Alembic dentro
   do pacote, `conta-tools-shared` para logging, versão, auth e testes.
-- **Porta** 5016, path externo `/contabil/*` (Caddy). Atualizar `conta-tools-web/DEPLOY.md` (seção
+- **Porta** 5017 (a 5016 é do Consoli), path externo `/contabil/*` (Caddy). Atualizar `conta-tools-web/DEPLOY.md` (seção
   nova, tabela de portas, dependências) no mesmo round em que o deploy existir.
 - **CLI**: `--version/--about`, `serve`, `migrar`, `provisionar-db` (cópia adaptada de
   `conta_tools_empresas/cli/provisionar_db.py`, role `conta_tools_contabil_app`, banco

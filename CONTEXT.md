@@ -2,7 +2,7 @@
 
 Atualizado a cada round de implementação.
 
-## Fase 1 (esqueleto e importação), versão 0.1.1
+## Fase 1 (esqueleto e importação), versão 0.1.2
 
 - CLI: `--version`, `migrar`, `provisionar-db`, `serve --conf api.conf`.
 - Leitores do IGC (`igc/`): plano, balancete, razão. HTML em cp1252.
@@ -20,7 +20,7 @@ Formatos descobertos na fase 1 (estão nos docstrings de `igc/`):
 
 ## Pendente
 
-- Deploy: seção nova em `conta-tools-web/DEPLOY.md` (porta 5016, Caddy `/contabil/*`,
+- Deploy: seção nova em `conta-tools-web/DEPLOY.md` (porta 5017, Caddy `/contabil/*`,
   `python-multipart` como dependência explícita, `provisionar-db`, `migrar`, NSSM). Fica para quando
   o Eric decidir subir.
 - Fases 2 a 4 da spec: pareamento e decisões, tela de conciliação ligada à API, NFS-e/ajustes/CSV e

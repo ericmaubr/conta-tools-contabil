@@ -12,7 +12,7 @@ from conta_tools_shared.config import Campo, carregar_conf_generico, carregar_in
 @dataclass
 class ApiConf:
     host: str = "127.0.0.1"
-    port: int = 5016
+    port: int = 5017
     # Prefixo do Caddy (`handle_path /contabil/*` remove o prefixo): sem isto o redirect de tela
     # sem sessão manda para /auth/?next=/ e o usuário cai num 404 depois do login.
     root_path: str = ""
@@ -25,7 +25,7 @@ def carregar_api_conf(caminho: Path) -> ApiConf:
         raise FileNotFoundError(f"api.conf não encontrado: {caminho}")
     campos = carregar_conf_generico(carregar_ini(caminho), [
         Campo("api", "host", "host", default="127.0.0.1"),
-        Campo("api", "port", "port", tipo=int, default=5016),
+        Campo("api", "port", "port", tipo=int, default=5017),
         Campo("api", "root_path", "root_path", rstrip_barra=True),
         Campo("db", "url", "db_url"),
         Campo("auth", "jwt_segredo", "auth_jwt_segredo"),
