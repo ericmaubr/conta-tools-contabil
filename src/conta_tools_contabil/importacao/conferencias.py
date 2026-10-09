@@ -5,7 +5,7 @@ devolve TODAS as divergências de uma vez, para o analista corrigir a exportaç�
 
 Códigos estáveis (a tela mostra a mensagem): periodo, empresa, balancete_fecha,
 conta_sem_balancete, conta_sem_razao, razao_x_balancete, total_da_conta, conta_fora_do_plano,
-lancamento_fora_do_periodo, lancamento_repetido, saldo_anterior."""
+lancamento_fora_do_periodo, lancamento_repetido, saldo_anterior, saldo_posterior."""
 
 from __future__ import annotations
 
@@ -16,7 +16,12 @@ from decimal import Decimal
 from conta_tools_contabil.igc.balancete import Balancete
 from conta_tools_contabil.igc.plano import Plano
 from conta_tools_contabil.igc.razao import Razao
-from conta_tools_contabil.importacao.periodo import meses_do_periodo, primeiro_dia, ultimo_dia
+from conta_tools_contabil.importacao.periodo import (
+    mes_seguinte,
+    meses_do_periodo,
+    primeiro_dia,
+    ultimo_dia,
+)
 
 ZERO = Decimal("0")
 
@@ -50,7 +55,11 @@ def conferir(
     mes_inicio: str,
     mes_fim: str,
     saldo_final_anterior: dict[str, Decimal],
+    saldo_anterior_seguinte: dict[str, Decimal] | None = None,
 ) -> list[Divergencia]:
+    """`saldo_final_anterior`: saldo final gravado do mês antes de `mes_inicio`.
+    `saldo_anterior_seguinte`: saldo anterior gravado do mês depois de `mes_fim` (reimportação de
+    um mês do meio). Vazio = não há mês gravado ali, não confere."""
     div: list[Divergencia] = []
 
     def add(codigo: str, reduzido: str | None, msg: str) -> None:
@@ -143,12 +152,30 @@ def conferir(
     # continuidade com o mês anterior já gravado. Com o período divergente ela não faz sentido (o
     # arquivo não começa no mês informado) e, no caso real, virou 133 linhas escondendo a `periodo`
     periodo_ok = not any(d.conferencia == "periodo" for d in div)
-    for reduzido, saldo in saldo_final_anterior.items() if periodo_ok else ():
-        atual = bal[reduzido].saldo_anterior if reduzido in bal else ZERO
-        if atual != saldo:
-            add("saldo_anterior", reduzido,
-                f"conta {reduzido}: saldo anterior {_br(atual)} difere do saldo final gravado "
-                f"do mês anterior {_br(saldo)}")
+    # As duas pontas olham a UNIÃO das contas: conta nova com saldo anterior ≠ 0 também denuncia
+    # mês anterior gravado velho (revisão final, achado 4). Conta que falta de um lado vale 0.
+    if periodo_ok and saldo_final_anterior:
+        for reduzido in sorted(saldo_final_anterior.keys() | bal.keys()):
+            atual = bal[reduzido].saldo_anterior if reduzido in bal else ZERO
+            gravado = saldo_final_anterior.get(reduzido, ZERO)
+            if atual != gravado:
+                add("saldo_anterior", reduzido,
+                    f"conta {reduzido}: saldo anterior {_br(atual)} difere do saldo final "
+                    f"gravado do mês anterior {_br(gravado)}")
+
+    # Reimportar um mês do meio que muda o saldo final deixaria o mês seguinte já gravado
+    # começando de outro saldo (revisão final, achado 2): recusa e pede o período até o fim.
+    seguinte = saldo_anterior_seguinte or {}
+    if periodo_ok and seguinte:
+        prox = mes_seguinte(mes_fim)
+        for reduzido in sorted(seguinte.keys() | bal.keys()):
+            final = bal[reduzido].saldo_atual if reduzido in bal else ZERO
+            gravado = seguinte.get(reduzido, ZERO)
+            if final != gravado:
+                add("saldo_posterior", reduzido,
+                    f"conta {reduzido}: saldo final {_br(final)} difere do saldo anterior "
+                    f"{_br(gravado)} de {prox}, que já está gravado; importe de {mes_inicio} "
+                    f"até o último mês gravado")
     return div
 
 

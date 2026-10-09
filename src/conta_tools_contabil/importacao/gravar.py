@@ -17,7 +17,12 @@ from conta_tools_contabil.igc.html import ArquivoInvalido
 from conta_tools_contabil.igc.plano import ler_plano
 from conta_tools_contabil.igc.razao import ler_razao
 from conta_tools_contabil.importacao.conferencias import Divergencia, conferir, saldos_por_mes
-from conta_tools_contabil.importacao.periodo import mes_anterior, meses_do_periodo, validar_mes
+from conta_tools_contabil.importacao.periodo import (
+    mes_anterior,
+    mes_seguinte,
+    meses_do_periodo,
+    validar_mes,
+)
 
 
 @dataclass
@@ -57,13 +62,18 @@ def importar(
 
     with engine.begin() as conn:
         t = db.conta_mes
-        anterior = {
-            x.reduzido: Decimal(x.saldo_final)  # conversao-ok: coluna Numeric do banco
-            for x in conn.execute(select(t.c.reduzido, t.c.saldo_final).where(
-                t.c.cnpj == b.cnpj, t.c.mes == mes_anterior(mes_inicio)))
-        }
+
+        def saldos_gravados(coluna, mes):
+            return {
+                x.reduzido: Decimal(x.valor)  # conversao-ok: coluna Numeric do banco
+                for x in conn.execute(select(t.c.reduzido, coluna.label("valor")).where(
+                    t.c.cnpj == b.cnpj, t.c.mes == mes))
+            }
+
         divergencias = conferir(
-            r, b, p, mes_inicio=mes_inicio, mes_fim=mes_fim, saldo_final_anterior=anterior
+            r, b, p, mes_inicio=mes_inicio, mes_fim=mes_fim,
+            saldo_final_anterior=saldos_gravados(t.c.saldo_final, mes_anterior(mes_inicio)),
+            saldo_anterior_seguinte=saldos_gravados(t.c.saldo_anterior, mes_seguinte(mes_fim)),
         )
         aceita = not divergencias
         imp_id = str(uuid.uuid4())
@@ -116,16 +126,19 @@ def _gravar_dados(conn, imp_id, cnpj, r, b, p, meses, mes_inicio, mes_fim) -> No
     }
     t = db.lancamento
     chave_t = tuple_(t.c.cnpj, t.c.reduzido, t.c.lote_lcto)
-    existentes = {
-        (x.cnpj, x.reduzido, x.lote_lcto)
+    # Identidade buscada em TODOS os meses da empresa: Lote/Lcto é ID global do IGC e não muda
+    # quando a data do lançamento é corrigida (revisão final, achado 1: virava IntegrityError).
+    # ponytail: lê as chaves de todos os meses da empresa; se crescer demais, filtrar pelas chaves.
+    mes_de = {
+        (x.cnpj, x.reduzido, x.lote_lcto): x.mes
         for x in conn.execute(
-            select(t.c.cnpj, t.c.reduzido, t.c.lote_lcto)
-            .where(t.c.cnpj == cnpj, t.c.mes.in_(meses))
+            select(t.c.cnpj, t.c.reduzido, t.c.lote_lcto, t.c.mes).where(t.c.cnpj == cnpj)
         )
     }
+    existentes = set(mes_de)
     # ponytail: apaga num IN só; o SQLite aceita 32.766 parâmetros e a importação real tem
     # 15.289 lançamentos. Se passar disso, apagar em lotes de 5.000.
-    sumiram = existentes - novos.keys()
+    sumiram = {k for k in existentes - novos.keys() if mes_de[k] in meses}
     if sumiram:
         conn.execute(delete(t).where(chave_t.in_(list(sumiram))))
     identidade = ("cnpj", "reduzido", "lote_lcto")

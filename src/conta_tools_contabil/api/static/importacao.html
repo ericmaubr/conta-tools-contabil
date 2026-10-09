@@ -83,14 +83,21 @@ document.getElementById('form').addEventListener('submit', async e => {
   botao.disabled = true; botao.textContent = 'Conferindo…'; saida.innerHTML = '';
   try {
     const resp = await contaToolsFetch('importacoes', { method: 'POST', body: new FormData(e.target) });
-    const corpo = await resp.json();
-    if (!resp.ok) { saida.innerHTML = `<div class="recusa">${esc(corpo.detail || 'Erro ao importar')}</div>`; return; }
+    // 500, 413 e 502 do Caddy vêm em texto/HTML: sem isto a tela ficava muda
+    const corpo = await resp.json().catch(() => null);
+    if (!resp.ok || !corpo) {
+      const detalhe = corpo && typeof corpo.detail === 'string' ? corpo.detail : `Erro ao importar (HTTP ${resp.status}). Nada foi gravado.`;
+      saida.innerHTML = `<div class="recusa">${esc(detalhe)}</div>`;
+      return;
+    }
     saida.innerHTML = corpo.aceita
       ? `<div class="ok">✓ Importação aceita: ${esc(corpo.empresa_nome)} (${fmtCnpj(corpo.cnpj)}), ${corpo.contas} contas, ${corpo.lancamentos} lançamentos.</div>`
       : `<div class="recusa">Importação recusada: ${corpo.divergencias.length} divergência(s). Nada foi gravado.</div>
          <table><tr><th>Conferência</th><th>Conta</th><th>O que não bateu</th></tr>
          ${corpo.divergencias.map(d => `<tr><td>${esc(d.conferencia)}</td><td>${esc(d.reduzido || '')}</td><td>${esc(d.mensagem)}</td></tr>`).join('')}</table>`;
     carregarLista();
+  } catch (erro) {
+    saida.innerHTML = `<div class="recusa">Não foi possível falar com o servidor: ${esc(erro.message)}. Nada foi gravado.</div>`;
   } finally {
     botao.disabled = false; botao.textContent = 'Importar e conferir';
   }

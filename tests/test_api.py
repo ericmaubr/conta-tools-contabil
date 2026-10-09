@@ -84,3 +84,22 @@ def test_tela_de_importacao_carrega_nav_e_nao_tem_cinza():
     for cinza in ("#888", "#999", "#666", "#777", "gray", "grey"):
         assert cinza not in html.lower()
     assert c.get("/nav.js").status_code == 200
+
+
+def test_conflito_de_gravacao_vira_409_com_mensagem(monkeypatch):
+    from sqlalchemy.exc import IntegrityError
+
+    from conta_tools_contabil.api import app as app_mod
+
+    def _conflito(*a, **k):
+        raise IntegrityError("insert", {}, Exception("UNIQUE constraint failed"))
+
+    monkeypatch.setattr(app_mod, "importar", _conflito)
+    r = _post(TestClient(app_de_teste()), _arquivos(JAN + FEV))
+    assert r.status_code == 409 and "tente de novo" in r.json()["detail"]
+
+
+def test_tela_mostra_erro_que_nao_vem_em_json():
+    """Revisão final, achado 3: 500/413/502 do Caddy vêm em texto e a tela ficava muda."""
+    html = TestClient(app_de_teste()).get("/").text
+    assert "catch" in html and "HTTP ${resp.status}" in html

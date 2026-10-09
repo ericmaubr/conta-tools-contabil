@@ -131,3 +131,33 @@ def test_periodo_errado_nao_soterra_com_saldo_anterior():
     sentido: no caso real virou 133 divergências escondendo a de período."""
     divs = _conferir(*_cenario(), anterior={"1-9": D("99")}, ini="2026-02")
     assert _codigos(divs) == ["periodo"]
+
+
+def test_conta_nova_com_saldo_anterior_e_conferida():
+    """Conta que não existia no mês anterior gravado mas chega com saldo anterior ≠ 0: o mês
+    anterior gravado está velho (lançamento retroativo). Revisão final, achado 4."""
+    anterior = {"1-9": D("100"), "2-7": D("-30"), "3-5": D("-70")}  # sem a 4-1
+    razao, balancete, plano = _cenario()
+    balancete.linhas[3] = LinhaBalancete("4.1", "4-1", "CONTRA", D("5"), D("20"), D("80"), D("-55"))
+    divs = _conferir(razao, balancete, plano, anterior=anterior)
+    assert any(d.conferencia == "saldo_anterior" and d.reduzido == "4-1" for d in divs)
+
+
+def test_primeira_importacao_nao_confere_saldo_anterior():
+    assert _conferir(*_cenario(), anterior={}) == []
+
+
+def test_saldo_final_diferente_do_mes_seguinte_gravado():
+    """Reimportar um mês do meio que muda o saldo final deixaria o mês seguinte incoerente.
+    Revisão final, achado 2: recusa pedindo para importar até o último mês gravado."""
+    seguinte = {"1-9": D("999"), "2-7": D("0"), "3-5": D("-70"), "4-1": D("-60")}
+    divs = conferir(*_cenario(), mes_inicio="2026-01", mes_fim="2026-02",
+                    saldo_final_anterior={}, saldo_anterior_seguinte=seguinte)
+    assert _codigos(divs) == ["saldo_posterior"]
+    assert divs[0].reduzido == "1-9" and "2026-03" in divs[0].mensagem
+
+
+def test_mes_seguinte_coerente_passa():
+    seguinte = {"1-9": D("130"), "2-7": D("0"), "3-5": D("-70"), "4-1": D("-60")}
+    assert conferir(*_cenario(), mes_inicio="2026-01", mes_fim="2026-02",
+                    saldo_final_anterior={}, saldo_anterior_seguinte=seguinte) == []

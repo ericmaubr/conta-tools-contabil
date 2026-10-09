@@ -11,6 +11,7 @@ from conta_tools_shared.seguranca import adicionar_headers_seguranca
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse
 from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 from starlette.middleware.gzip import GZipMiddleware
 
 from conta_tools_contabil import autorizacao, db
@@ -110,6 +111,14 @@ def create_app(api_conf: ApiConf) -> FastAPI:
             )
         except (ArquivoInvalido, ValueError) as e:
             raise HTTPException(status_code=422, detail=str(e)) from e
+        except IntegrityError as e:
+            # duas importações da mesma empresa ao mesmo tempo: a chave segura o dado, mas a pessoa
+            # precisa de uma mensagem e não de um 500 (revisão final, achado 3)
+            raise HTTPException(
+                status_code=409,
+                detail="Outra importação desta empresa foi gravada ao mesmo tempo. Nada desta foi "
+                       "gravado; tente de novo.",
+            ) from e
         return {
             "id": r.id, "aceita": r.aceita, "cnpj": r.cnpj, "empresa_nome": r.empresa_nome,
             "contas": r.contas, "lancamentos": r.lancamentos,

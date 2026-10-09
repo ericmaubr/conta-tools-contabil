@@ -131,10 +131,32 @@ def test_mes_seguinte_confere_saldo_anterior_com_o_gravado(engine):
     fev = [("03/02/2026", D("0"), D("20"), "1/3")]
     r = _importar(engine, _arquivos(fev, ini="02/2026", fim="02/2026", dfim="28/02/2026", ant=D("999")), "2026-02", "2026-02")
     assert not r.aceita
-    assert {d.conferencia for d in r.divergencias} == {"saldo_anterior"}
+    # fevereiro também não encaixa com março, já gravado (começa em 999, fevereiro termina em 979)
+    assert {d.conferencia for d in r.divergencias} == {"saldo_anterior", "saldo_posterior"}
 
 
 def test_arquivo_trocado_levanta_dizendo_qual(engine):
     razao, balancete, plano = _arquivos(JAN + FEV)
     with pytest.raises(ArquivoInvalido, match="razão"):
         importar(engine, razao=balancete, balancete=balancete, plano=plano, mes_inicio="2026-01", mes_fim="2026-02", quem="ana")
+
+
+def test_lancamento_que_mudou_de_mes_nao_quebra_a_reimportacao(engine):
+    """Lote/Lcto é ID global do IGC: corrigir a data no IGC muda o mês, não a identidade.
+    Revisão final, achado 1 (antes: IntegrityError, HTTP 500). Os dois lançamentos se anulam,
+    então o saldo final de janeiro não muda e fevereiro continua coerente."""
+    par_fev = [("03/02/2026", D("20"), D("0"), "2/1"), ("04/02/2026", D("0"), D("20"), "2/2")]
+    assert _importar(engine, _arquivos(JAN + par_fev)).aceita
+    par_jan = [("27/01/2026", D("20"), D("0"), "2/1"), ("28/01/2026", D("0"), D("20"), "2/2")]
+    r = _importar(engine, _arquivos(JAN + par_jan, fim="01/2026", dfim="31/01/2026"), fim="2026-01")
+    assert r.aceita, r.divergencias
+    with engine.connect() as c:
+        mes = {x.lote_lcto: x.mes for x in c.execute(select(db.lancamento).where(db.lancamento.c.reduzido == "1-9"))}
+    assert mes["2/1"] == mes["2/2"] == "2026-01"
+
+
+def test_reimportar_mes_do_meio_que_muda_o_saldo_e_recusado(engine):
+    assert _importar(engine, _arquivos(JAN + FEV)).aceita
+    r = _importar(engine, _arquivos(JAN[:1], fim="01/2026", dfim="31/01/2026"), fim="2026-01")
+    assert not r.aceita
+    assert {d.conferencia for d in r.divergencias} == {"saldo_posterior"}

@@ -98,7 +98,11 @@ que permite reimportar sem perder conciliação.
 - para cada conta: saldo anterior + soma dos lançamentos = último saldo do razão;
 - razão bate com o balancete conta a conta (saldo anterior, débitos, créditos, saldo atual). No exemplo:
   350 contas, 0 divergências;
-- saldo anterior do período importado = saldo final já gravado do mês anterior, quando houver;
+- saldo anterior do período importado = saldo final já gravado do mês anterior, quando houver
+  (todas as contas dos dois lados; conta que falta vale 0);
+- saldo final do período importado = saldo anterior já gravado do mês seguinte, quando houver
+  (reimportar um mês do meio que muda o saldo é recusado com `saldo_posterior`, pedindo para
+  importar até o último mês gravado);
 - contas com saldo e sem movimento existem só no balancete (28 no exemplo): entram como conta sem
   lançamentos, com o saldo anterior como item em aberto.
 
@@ -229,7 +233,7 @@ Retenção: para sempre. Conciliação compartilhada por empresa (todos os anali
 | Tabela | Conteúdo | Chave |
 |---|---|---|
 | `importacao` | uma por envio: empresa, período, arquivos (hash), quem, quando, resultado das conferências | id |
-| `plano_conta` | plano versionado por importação: classificação, reduzido, descrição, CNPJ, grau | (importacao, reduzido) |
+| `plano_conta` | plano versionado por importação: classificação, reduzido, descrição, CNPJ, grau | (importacao, classificação): sintéticas não têm reduzido |
 | `conta_mes` | saldo anterior, débitos, créditos, saldo final por conta e mês, marca "de vários terceiros" | (empresa, reduzido, mês) |
 | `lancamento` | cópia do razão: data, histórico, contrapartida, lote/lcto, valor D − C | (empresa, reduzido, lote_lcto) |
 | `grupo` | conciliação: camada, estado (sugestão, conciliado), quem e quando | id |
